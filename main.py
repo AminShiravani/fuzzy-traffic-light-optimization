@@ -46,7 +46,7 @@ import time
 
 from functools import partial
 
-
+import json
 
 import matplotlib
 
@@ -170,7 +170,49 @@ def evaluate_controller_multi_seed(params: np.ndarray, seeds) -> dict:
     return avg
 
 
+def save_simulation_json(metrics: dict, filename: str):
+    """
+    Save the simulation metrics and histories to a JSON file.
 
+    Parameters
+    ----------
+    metrics : dict
+        Output of evaluate_controller_multi_seed().
+    filename : str
+        Output filename (e.g. baseline.json).
+    """
+
+    r = metrics["last_episode_result"]
+
+    simulation_json = {
+        "avg_wait_time": metrics["avg_wait_time"],
+        "avg_queue_length": metrics["avg_queue_length"],
+        "total_stops": metrics["total_stops"],
+        "cost": metrics["cost"],
+
+        "queue1_history": r.queue1_history.tolist(),
+        "queue2_history": r.queue2_history.tolist(),
+
+        "green1_history": r.green1_history.tolist(),
+        "green2_history": r.green2_history.tolist(),
+
+        "light1_history": r.light1_history.tolist(),
+        "light2_history": r.light2_history.tolist(),
+        "phase_history": r.phase_history.tolist(),
+
+        "time_axis": r.time_axis.tolist(),
+
+        "total_vehicles": r.total_vehicles,
+    }
+
+    os.makedirs("sim/data", exist_ok=True)
+
+    json_path = os.path.join("sim", "data", filename)
+
+    with open(json_path, "w") as f:
+        json.dump(simulation_json, f, indent=4)
+
+    print(f"Saved simulation to {json_path}")
 
 
 def main():
@@ -207,8 +249,11 @@ def main():
         f"queue={baseline_metrics['avg_queue_length']:.2f}, "
         f"stops={baseline_metrics['total_stops']:.1f}"
     )
-
-
+    
+    save_simulation_json(
+        baseline_metrics,
+        "baseline.json",
+    )
 
     # ---------------------------------------------------------------
     # 2) PSO (Particle Swarm Optimisation) — tune the fuzzy params
@@ -233,7 +278,10 @@ def main():
         f"stops={pso_metrics['total_stops']:.1f}"
     )
 
-
+    save_simulation_json(
+        pso_metrics,
+        "pso.json",
+    )
 
     # ---------------------------------------------------------------
     # 3) ACO (Ant Colony Optimisation for continuous domains) — tune
@@ -259,7 +307,10 @@ def main():
         f"stops={aco_metrics['total_stops']:.1f}"
     )
 
-
+    save_simulation_json(
+        aco_metrics,
+        "aco.json",
+    )
 
     # ---------------------------------------------------------------
     # Generate all comparison plots and save them to OUTPUT_DIR
