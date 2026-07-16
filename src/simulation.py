@@ -53,17 +53,23 @@ class SimulationConfig:
     max_queue: float = 60.0  # hard cap to keep the simulation numerically bounded
     seed: Optional[int] = None
 
-
 @dataclass
 class EpisodeResult:
     avg_wait_time: float
     avg_queue_length: float
     total_stops: int
     total_vehicles: int
+
     queue1_history: np.ndarray
     queue2_history: np.ndarray
+
     green1_history: np.ndarray
     green2_history: np.ndarray
+
+    light1_history: np.ndarray
+    light2_history: np.ndarray
+    phase_history: np.ndarray
+
     time_axis: np.ndarray
 
 
@@ -129,61 +135,119 @@ class TrafficIntersection:
 
     def run_episode(self, controller) -> EpisodeResult:
         """
-        Run a full episode of `config.num_cycles` decision cycles.
-
-        `controller` must expose:
-            controller.compute(queue_self, arrival_self, queue_other, arrival_other) -> float
-        It is called twice per cycle (once per road, with self/other swapped)
-        so the SAME fuzzy system produces both green1 and green2 -- see the
-        design note in fuzzy_controller.py.
+        Run one complete traffic simulation episode.
         """
+    
         self.reset()
-        q1_hist, q2_hist = [], []
-        g1_hist, g2_hist = [], []
+    
+        # Queue history (one value every simulated second)
+        q1_hist = []
+        q2_hist = []
+    
+        # Green duration chosen by the controller (one value every cycle)
+        g1_hist = []
+        g2_hist = []
+    
+        # NEW: light state history (one value every simulated second)
+        light1_hist = []
+        light2_hist = []
+    
+        # NEW: phase history
+        # 1 = Road 1 green
+        # 2 = Road 2 green
+        phase_hist = []
+    
         total_stops = 0
         total_vehicles = 0
-
+    
         for _ in range(self.config.num_cycles):
+        
+            # ---------------------------------------
+            # Compute green duration for Road 1
+            # ---------------------------------------
             green1 = controller.compute(
-                self.queue1, self._ema1, self.queue2, self._ema2
+                self.queue1,
+                self._ema1,
+                self.queue2,
+                self._ema2,
             )
+    
+            # ---------------------------------------
+            # Compute green duration for Road 2
+            # ---------------------------------------
             green2 = controller.compute(
-                self.queue2, self._ema2, self.queue1, self._ema1
+                self.queue2,
+                self._ema2,
+                self.queue1,
+                self._ema1,
             )
-
+    
+            # Store controller outputs
+            g1_hist.append(green1)
+            g2_hist.append(green2)
+    
+            # ---------------------------------------
+            # Road 1 Green
+            # ---------------------------------------
+    
+            duration1 = int(round(green1))
+    
             s1, _ = self._run_seconds(
-                int(round(green1)),
+                duration1,
                 road1_green=True,
                 queue_log1=q1_hist,
                 queue_log2=q2_hist,
             )
+    
+            # Save light state for every simulated second
+            light1_hist.extend([1] * duration1)
+            light2_hist.extend([0] * duration1)
+            phase_hist.extend([1] * duration1)
+    
+            # ---------------------------------------
+            # Road 2 Green
+            # ---------------------------------------
+    
+            duration2 = int(round(green2))
+    
             _, s2 = self._run_seconds(
-                int(round(green2)),
+                duration2,
                 road1_green=False,
                 queue_log1=q1_hist,
                 queue_log2=q2_hist,
             )
-
+    
+            light1_hist.extend([0] * duration2)
+            light2_hist.extend([1] * duration2)
+            phase_hist.extend([2] * duration2)
+    
             total_stops += s1 + s2
-            total_vehicles += s1 + s2  # every counted "stop" is one vehicle event
-            g1_hist.append(green1)
-            g2_hist.append(green2)
-
+            total_vehicles += s1 + s2
+    
+        # Convert everything to numpy arrays
         q1_hist = np.array(q1_hist)
         q2_hist = np.array(q2_hist)
+    
         avg_queue = float(np.mean(q1_hist + q2_hist)) if len(q1_hist) else 0.0
-        avg_wait = (
-            avg_queue  # vehicle-seconds-of-delay proxy == avg combined queue length
-        )
-
+        avg_wait = avg_queue
+    
         return EpisodeResult(
             avg_wait_time=avg_wait,
             avg_queue_length=avg_queue,
+    
             total_stops=total_stops,
             total_vehicles=max(total_vehicles, 1),
+    
             queue1_history=q1_hist,
             queue2_history=q2_hist,
+    
             green1_history=np.array(g1_hist),
             green2_history=np.array(g2_hist),
+    
+            light1_history=np.array(light1_hist),
+            light2_history=np.array(light2_hist),
+            phase_history=np.array(phase_hist),
+    
             time_axis=np.arange(len(q1_hist)),
         )
+    
