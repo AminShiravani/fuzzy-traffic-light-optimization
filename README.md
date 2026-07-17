@@ -29,13 +29,6 @@ fuzzy-traffic-light-optimization/
 ├── requirements.txt
 ├── .gitignore
 │
-├── notebooks/
-│   ├── 01_traffic_simulation.ipynb   # Time-discrete traffic intersection simulator
-│   ├── 02_fuzzy_controller.ipynb    # Mamdani FLC implementation
-│   ├── 03_pso_optimization.ipynb    # Tuning fuzzy system with PSO
-│   ├── 04_aco_optimization.ipynb    # Tuning fuzzy system with ACO
-│   └── 05_final_comparison.ipynb    # Benchmark results and visualizations
-│
 ├── src/
 │   ├── __init__.py
 │   ├── simulation.py                # Intersection environment class
@@ -44,7 +37,13 @@ fuzzy-traffic-light-optimization/
 │   ├── pso.py                       # PSO algorithm implementation
 │   ├── aco.py                       # ACO algorithm implementation
 │   └── plots.py                     # Visualization helpers
-└── 
+└──
+|__ sim /
+|   |__ data/
+|   |__ app.py
+|   |__ loader.py
+|   |__ render.py
+|   |__ simulation.py
 ```
 
 ## 🛠️ Installation & Setup
@@ -78,6 +77,76 @@ Once the parameters are optimized, you can run the main simulation scripts:
 ```bash
 python src/simulation.py
 ```
+
+## 🚦 Traffic Simulation (Pygame)
+
+In addition to the optimization algorithms, the project includes a real-time traffic visualization built with **Pygame**.
+
+The simulation is located in the `sim/` directory and provides a graphical representation of the intersection, allowing users to observe how the optimized fuzzy controllers manage traffic flow.
+
+### How it Works
+
+1. The optimization algorithms (PSO or ACO) generate simulation data.
+2. The generated traffic data is stored as **JSON** files inside the `sim/data/` directory.
+3. The Pygame application reads these JSON files.
+4. Vehicles are animated according to the recorded traffic states, making it possible to visually inspect queue evolution, signal changes, and vehicle movement.
+
+```
+sim/
+│
+├── data/               # JSON files containing simulation states
+├── app.py              # Starts the Pygame application
+├── loader.py           # Loads JSON simulation data
+├── render.py           # Draws vehicles, roads, and traffic lights
+└── simulation.py       # Controls the simulation playback
+```
+
+Run the visualization using:
+
+```bash
+python sim/app.py
+```
+
+This visualization is intended for demonstration purposes and provides an intuitive way to compare different traffic control strategies.
+
+
+## 📈 Membership Functions
+
+The following figure shows the fuzzy membership functions learned by the **Ant Colony Optimization (ACO)** algorithm.
+
+![ACO Membership Functions](outputs/membership_aco.png)
+
+The membership functions divide each linguistic variable into three fuzzy sets:
+
+- **Low**
+- **Medium**
+- **High**
+
+These fuzzy sets are used by the Mamdani fuzzy inference system to determine the appropriate green-light duration based on the current traffic conditions. During optimization, ACO adjusts the shape and position of these membership functions to improve overall traffic performance.
+
+## 🚗 Queue Length Comparison (ACO)
+
+The figure below illustrates the traffic queue lengths during the simulation for the controller optimized using **ACO**.
+
+![ACO Queue Trace](outputs/queue_trace_aco.png)
+
+The plot shows:
+
+- **Queue 1:** Number of vehicles waiting on Road 1.
+- **Queue 2:** Number of vehicles waiting on Road 2.
+
+The ACO-optimized controller maintains a balanced distribution of traffic between both roads, preventing one direction from becoming excessively congested while still allowing efficient traffic flow.
+
+## 🚗 Queue Length Comparison (PSO)
+
+The following figure shows the queue evolution for the **PSO-optimized** controller.
+
+![PSO Queue Trace](outputs/queue_trace_pso.png)
+
+Unlike ACO, the PSO solution tends to prioritize one traffic direction. As a result, one queue remains relatively short while the other grows significantly larger.
+
+This behavior demonstrates that although PSO is capable of reducing the overall optimization cost, it may produce less balanced traffic flow compared with the ACO-based controller.
+
 
 ## 📊 Evaluation Metrics & Results
 The final comparison analyzes:
